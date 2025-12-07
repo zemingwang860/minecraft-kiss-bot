@@ -96,6 +96,9 @@ const config = {
   auth: 'microsoft',
   version: process.env.MC_VERSION || '1.20.1',
   profilesFolder: AUTH_CACHE_DIR,
+  // 增加keepalive配置，减少超时错误
+  keepAliveTimeout: 60000, // 60秒超时，默认是30秒
+  keepAlive: true,
   onMsaCode: (data) => {
     enhancedLogger.sys(`微软登录验证码：${data.user_code}`);
     enhancedLogger.sys(`请访问：${data.verification_uri}`);
