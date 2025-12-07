@@ -445,6 +445,14 @@ let botState = '正在初始化...';
 let commandInterval = null;
 let isCommandLoopActive = false;
 let isBotSpawned = false; // 机器人是否已成功进入游戏
+let bot = null; // 全局 bot 实例
+
+// 重连机制配置
+let reconnectAttempts = 0;
+const MAX_RECONNECT_ATTEMPTS = 10;
+const RECONNECT_DELAY = 5000; // 5秒后重试
+const MAX_RECONNECT_DELAY = 60000; // 最大延迟60秒
+let reconnectTimeout = null;
 
 // 玩家轨迹数据存储
 const playerTrajectories = new Map();
@@ -835,22 +843,48 @@ function createBot() {
     enhancedLogger.warn(`连接断开: ${reason}`);
     botState = `连接已断开`;
     io.emit('status', botState);
-    stopCommandLoop();
+    stopCommandLoop(); // 停止指令循环
     
-    // 记录断开信息
-    const disconnectInfo = {
-      time: new Date().toISOString(),
-      reason: reason,
-      reconnect_in: '10秒'
-    };
+    // 尝试重新连接
+    reconnectAttempts++;
+    const delay = Math.min(RECONNECT_DELAY * Math.pow(2, reconnectAttempts), MAX_RECONNECT_DELAY);
     
-    fs.writeFileSync(
-      path.join(BOT_DATA_DIR, 'disconnect-log.json'),
-      JSON.stringify(disconnectInfo)
-    );
-    
-    // 10秒后重新连接
-    setTimeout(() => createBot(), 10000);
+    if (reconnectAttempts <= MAX_RECONNECT_ATTEMPTS) {
+      enhancedLogger.warn(`正在尝试重新连接... (${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS}) - ${delay}毫秒后重试`);
+      
+      // 记录断开信息
+      const disconnectInfo = {
+        time: new Date().toISOString(),
+        reason: reason,
+        reconnect_in: `${Math.round(delay/1000)}秒`
+      };
+      
+      fs.writeFileSync(
+        path.join(BOT_DATA_DIR, 'disconnect-log.json'),
+        JSON.stringify(disconnectInfo)
+      );
+      
+      // 使用指数退避策略重新连接
+      reconnectTimeout = setTimeout(() => {
+        enhancedLogger.ok(`开始第${reconnectAttempts}次重连...`);
+        // 重新创建机器人实例
+        createBot();
+      }, delay);
+    } else {
+      enhancedLogger.error(`达到最大重连尝试次数(${MAX_RECONNECT_ATTEMPTS})，停止重试。`);
+      
+      // 记录最终断开信息
+      const disconnectInfo = {
+        time: new Date().toISOString(),
+        reason: reason,
+        reconnect_in: '已停止重试'
+      };
+      
+      fs.writeFileSync(
+        path.join(BOT_DATA_DIR, 'disconnect-log.json'),
+        JSON.stringify(disconnectInfo)
+      );
+    }
   });
 
   bot.on('kicked', (reason) => {
@@ -882,48 +916,71 @@ function startCommandLoop() {
     return;
   }
 
-  enhancedLogger.cmd(`启动指令循环，目标: ${TARGET_PLAYER}, 间隔: ${COMMAND_DELAY}毫秒`);
-  botState = `正在高频执行 /kiss ${TARGET_PLAYER}`;
+  enhancedLogger.cmd(`启动指令循环，目标: ${TARGET_PLAYER}, 基础间隔: ${COMMAND_DELAY}毫秒`);
+  botState = `正在执行 /kiss ${TARGET_PLAYER}`;
   io.emit('status', botState);
   isCommandLoopActive = true;
   io.emit('control-state', { isActive: true });
 
   let commandCount = 0;
-  commandInterval = setInterval(() => {
-    if (bot && bot.player) {
-      commandCount++;
-      bot.chat(`/kiss ${TARGET_PLAYER}`);
-      
-      // 每10次指令输出一次状态，避免日志过多
-      if (commandCount % 10 === 0) {
-        enhancedLogger.cmd(`已执行 ${commandCount} 次指令`);
+  
+  // 使用setTimeout代替setInterval，实现更灵活的延迟控制
+  function executeNextCommand() {
+    if (!isCommandLoopActive || !bot || !bot.player) {
+      stopCommandLoop();
+      return;
+    }
+    
+    commandCount++;
+    
+    // 在发送指令前检查机器人状态
+    if (bot && bot.player && bot.connected) {
+      try {
+        bot.chat(`/kiss ${TARGET_PLAYER}`);
         
-        // 记录指令执行统计
-        const stats = {
-          last_update: new Date().toISOString(),
-          total_commands: commandCount,
-          target_player: TARGET_PLAYER,
-          command_delay: COMMAND_DELAY
-        };
+        // 每10次指令输出一次状态，避免日志过多
+        if (commandCount % 10 === 0) {
+          enhancedLogger.cmd(`已执行 ${commandCount} 次指令`);
+          
+          // 记录指令执行统计
+          const stats = {
+            last_update: new Date().toISOString(),
+            total_commands: commandCount,
+            target_player: TARGET_PLAYER,
+            command_delay: COMMAND_DELAY
+          };
+          
+          fs.writeFileSync(
+            path.join(BOT_DATA_DIR, 'command-stats.json'),
+            JSON.stringify(stats)
+          );
+        }
         
-        fs.writeFileSync(
-      path.join(BOT_DATA_DIR, 'command-stats.json'),
-      JSON.stringify(stats)
-    );
+        // 发送动作消息到Web界面
+        const actionMsg = `[动作] 第${commandCount}次执行 /kiss ${TARGET_PLAYER}`;
+        io.emit('chat', { time: new Date().toLocaleTimeString(), text: actionMsg });
+      } catch (err) {
+        enhancedLogger.err(`执行指令失败: ${err.message}`);
+        stopCommandLoop();
+        return;
       }
-      
-      // 发送动作消息到Web界面
-      const actionMsg = `[动作] 第${commandCount}次执行 /kiss ${TARGET_PLAYER}`;
-      io.emit('chat', { time: new Date().toLocaleTimeString(), text: actionMsg });
     } else {
       stopCommandLoop();
+      return;
     }
-  }, COMMAND_DELAY);
+    
+    // 添加随机延迟，避免固定间隔发送指令，降低被检测为机器人的风险
+    const randomDelay = COMMAND_DELAY + Math.floor(Math.random() * 1000); // 1000ms随机延迟
+    commandInterval = setTimeout(executeNextCommand, randomDelay);
+  }
+  
+  // 执行第一条指令
+  executeNextCommand();
 }
 
 function stopCommandLoop() {
   if (commandInterval) {
-    clearInterval(commandInterval);
+    clearTimeout(commandInterval); // 改为使用clearTimeout，因为现在用的是setTimeout
     commandInterval = null;
   }
   isCommandLoopActive = false;
