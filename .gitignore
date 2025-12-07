@@ -48,3 +48,4 @@ coverage/
 
 # Authentication files
 auth-cache/
+.gitignore
