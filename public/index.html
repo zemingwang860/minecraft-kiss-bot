@@ -1,0 +1,1400 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MC 机器人控制台 | v3.0</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --primary: #ff7b00;
+            --primary-light: #ff9a3d;
+            --primary-dark: #e66e00;
+            --background: #fffdf8;
+            --surface: #ffffff;
+            --text-primary: #333333;
+            --text-secondary: #666666;
+            --border-color: #ffe0cc;
+            --success: #4caf50;
+            --warning: #ff9800;
+            --danger: #f44336;
+            --card-shadow: 0 4px 12px rgba(255, 123, 0, 0.1);
+            --transition: all 0.3s ease;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: var(--background);
+            color: var(--text-primary);
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+
+        .app-container {
+            display: flex;
+            min-height: 100vh;
+        }
+
+        /* 导航栏 */
+        .sidebar {
+            width: 250px;
+            background: var(--surface);
+            border-right: 1px solid var(--border-color);
+            padding: 20px 0;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 2px 0 10px rgba(0, 0, 0, 0.05);
+            z-index: 100;
+        }
+
+        .logo {
+            padding: 0 20px 20px;
+            border-bottom: 1px solid var(--border-color);
+            margin-bottom: 20px;
+        }
+
+        .logo h1 {
+            color: var(--primary);
+            font-size: 1.4rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .nav-menu {
+            flex: 1;
+        }
+
+        .nav-item {
+            padding: 14px 20px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            cursor: pointer;
+            transition: var(--transition);
+            border-left: 3px solid transparent;
+            color: var(--text-secondary);
+        }
+
+        .nav-item.active {
+            background: #fff9f2;
+            color: var(--primary);
+            border-left: 3px solid var(--primary);
+        }
+
+        .nav-item:hover {
+            background: #fff9f2;
+            color: var(--primary);
+        }
+
+        .nav-item i {
+            width: 24px;
+            text-align: center;
+        }
+
+        /* 主内容区 */
+        .main-content {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+        }
+
+        .page {
+            display: none;
+        }
+
+        .page.active {
+            display: block;
+        }
+
+        .card {
+            background: var(--surface);
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 20px;
+            box-shadow: var(--card-shadow);
+            border: 1px solid var(--border-color);
+            transition: var(--transition);
+        }
+
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(255, 123, 0, 0.15);
+        }
+
+        h2 {
+            color: var(--primary-dark);
+            margin-bottom: 16px;
+            font-size: 1.4rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        h3 {
+            color: var(--primary);
+            margin: 16px 0 12px;
+            font-size: 1.1rem;
+        }
+
+        .status-area {
+            background: #fff9f2;
+            padding: 16px;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+        }
+
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            border-radius: 20px;
+            background: var(--primary-light);
+            color: white;
+            font-weight: 500;
+        }
+
+        .status-badge.success {
+            background: var(--success);
+        }
+
+        .status-badge.error {
+            background: var(--danger);
+        }
+
+        .status-badge.connecting {
+            background: var(--warning);
+        }
+
+        #chat-container {
+            display: flex;
+            flex-direction: column;
+            height: 400px;
+        }
+
+        #chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            background: #fafafa;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 16px;
+            border: 1px solid var(--border-color);
+        }
+
+        .message {
+            display: flex;
+            margin-bottom: 12px;
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .message-avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: var(--primary);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            margin-right: 12px;
+            flex-shrink: 0;
+        }
+
+        .message-content {
+            flex: 1;
+        }
+
+        .message-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 4px;
+            font-size: 0.9rem;
+        }
+
+        .message-sender {
+            font-weight: 600;
+            color: var(--primary-dark);
+        }
+
+        .message-time {
+            color: var(--text-secondary);
+        }
+
+        .message-text {
+            background: white;
+            padding: 8px 12px;
+            border-radius: 8px;
+            border-left: 3px solid var(--primary);
+        }
+
+        .controls {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 10px 16px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: var(--transition);
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: var(--primary-dark);
+            transform: translateY(-1px);
+        }
+
+        .btn-outline {
+            background: transparent;
+            border: 1px solid var(--primary);
+            color: var(--primary);
+        }
+
+        .btn-outline:hover {
+            background: var(--primary);
+            color: white;
+        }
+
+        .btn-danger {
+            background: var(--danger);
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #d32f2f;
+        }
+
+        .btn-sm {
+            padding: 6px 12px;
+            font-size: 0.875rem;
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+
+        .info-card {
+            background: #fff9f2;
+            padding: 16px;
+            border-radius: 8px;
+            text-align: center;
+            border: 1px solid var(--border-color);
+        }
+
+        .info-label {
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+            margin-bottom: 4px;
+        }
+
+        .info-value {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: var(--primary);
+        }
+
+        input[type="text"] {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            margin-bottom: 12px;
+            font-size: 1rem;
+            transition: var(--transition);
+        }
+
+        input[type="text"]:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 2px rgba(255, 123, 0, 0.2);
+        }
+
+        .message.robot {
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.8; }
+        }
+
+        .radar-container {
+            position: relative;
+            width: 100%;
+            height: 300px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .radar-circle {
+            width: 280px;
+            height: 280px;
+            border-radius: 50%;
+            border: 2px solid var(--primary);
+            position: relative;
+            background: linear-gradient(135deg, #fff9f2, #ffffff);
+        }
+
+        .radar-center {
+            width: 16px;
+            height: 16px;
+            background: var(--danger);
+            border-radius: 50%;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 10;
+            box-shadow: 0 0 8px rgba(244, 67, 54, 0.5);
+        }
+
+        .radar-grid {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        .radar-grid-line {
+            position: absolute;
+            background: rgba(255, 123, 0, 0.3);
+        }
+
+        .radar-player {
+            width: 12px;
+            height: 12px;
+            background: var(--primary);
+            border-radius: 50%;
+            position: absolute;
+            transform: translate(-50%, -50%);
+            box-shadow: 0 0 8px rgba(255, 123, 0, 0.5);
+            transition: var(--transition);
+        }
+
+        .radar-player:hover {
+            transform: translate(-50%, -50%) scale(1.5);
+            z-index: 20;
+        }
+
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255, 123, 0, 0.3);
+            border-radius: 50%;
+            border-top-color: var(--primary);
+            animation: spin 1s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        footer {
+            text-align: center;
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+            padding: 20px;
+            margin-top: 20px;
+            border-top: 1px solid var(--border-color);
+        }
+
+        @media (max-width: 768px) {
+            .app-container {
+                flex-direction: column;
+            }
+            
+            .sidebar {
+                width: 100%;
+                border-right: none;
+                border-bottom: 1px solid var(--border-color);
+            }
+            
+            .nav-menu {
+                display: flex;
+                flex-wrap: wrap;
+            }
+            
+            .nav-item {
+                flex: 1;
+                justify-content: center;
+                border-left: none;
+                border-bottom: 3px solid transparent;
+            }
+            
+            .nav-item.active {
+                border-left: none;
+                border-bottom: 3px solid var(--primary);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <!-- 侧边导航栏 -->
+        <div class="sidebar">
+            <div class="logo">
+                <h1><i class="fas fa-robot"></i> MC控制台</h1>
+            </div>
+            <div class="nav-menu">
+                <div class="nav-item active" data-page="dashboard">
+                    <i class="fas fa-tachometer-alt"></i>
+                    <span>仪表盘</span>
+                </div>
+                <div class="nav-item" data-page="chat">
+                    <i class="fas fa-comments"></i>
+                    <span>聊天监控</span>
+                </div>
+                <div class="nav-item" data-page="radar">
+                    <i class="fas fa-radar"></i>
+                    <span>雷达监控</span>
+                </div>
+                <div class="nav-item" data-page="tracking">
+                    <i class="fas fa-map-marked-alt"></i>
+                    <span>轨迹追踪</span>
+                </div>
+                <div class="nav-item" data-page="database">
+                    <i class="fas fa-database"></i>
+                    <span>数据管理</span>
+                </div>
+                <div class="nav-item" data-page="control">
+                    <i class="fas fa-cogs"></i>
+                    <span>机器人控制</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 主内容区 -->
+        <div class="main-content">
+            <!-- 仪表盘页面 -->
+            <div id="dashboard" class="page active">
+                <div class="card">
+                    <h2><i class="fas fa-tachometer-alt"></i> 仪表盘</h2>
+                    <div class="status-area">
+                        <h3>当前连接状态</h3>
+                        <div class="status-badge" id="status-badge">
+                            <i class="fas fa-sync-alt fa-spin"></i> <span id="status-text">正在初始化连接...</span>
+                        </div>
+                    </div>
+                    
+                    <div class="info-grid" style="margin-top: 20px;">
+                        <div class="info-card"><div class="info-label">在线时间</div><div class="info-value" id="info-uptime">0m</div></div>
+                        <div class="info-card"><div class="info-label">接收消息</div><div class="info-value" id="info-msg-count">0</div></div>
+                        <div class="info-card"><div class="info-label">执行指令</div><div class="info-value" id="info-cmd-count">0</div></div>
+                        <div class="info-card"><div class="info-label">连接延迟</div><div class="info-value" id="info-ping">--</div></div>
+                    </div>
+                    
+                    <h3 style="margin: 20px 0 12px;">服务器信息</h3>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px;">
+                        <div style="background: #fff9f2; padding: 12px; border-radius: 6px; border: 1px solid var(--border-color);">
+                            <div style="font-weight: 600; color: var(--primary);">服务器地址</div>
+                            <div id="info-server">mc.zenoxs.cn:25565</div>
+                        </div>
+                        <div style="background: #fff9f2; padding: 12px; border-radius: 6px; border: 1px solid var(--border-color);">
+                            <div style="font-weight: 600; color: var(--primary);">目标玩家</div>
+                            <div id="info-target">某某</div>
+                        </div>
+                        <div style="background: #fff9f2; padding: 12px; border-radius: 6px; border: 1px solid var(--border-color);">
+                            <div style="font-weight: 600; color: var(--primary);">指令间隔</div>
+                            <div id="info-interval">45 秒</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <h2><i class="fas fa-bolt"></i> 快捷操作</h2>
+                    <div class="controls" style="flex-wrap: wrap;">
+                        <button class="btn btn-primary" id="btn-start-kiss"><i class="fas fa-play"></i> 开始自动亲吻指令</button>
+                        <button class="btn btn-outline" id="btn-pause-kiss"><i class="fas fa-pause"></i> 暂停指令循环</button>
+                        <button class="btn btn-outline" id="btn-send-test"><i class="fas fa-paper-plane"></i> 发送测试消息</button>
+                        <button class="btn btn-danger" id="btn-stop"><i class="fas fa-stop-circle"></i> 紧急停止机器人</button>
+                    </div>
+                    
+                    <h3 style="margin: 20px 0 12px;">手动发送指令</h3>
+                    <div style="display: flex; gap: 12px;">
+                        <input type="text" id="manual-cmd" placeholder="输入 Minecraft 指令，例如 /say Hello">
+                        <button class="btn btn-primary" id="btn-send-cmd"><i class="fas fa-paper-plane"></i> 发送</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 聊天监控页面 -->
+            <div id="chat" class="page">
+                <div class="card">
+                    <h2><i class="fas fa-comments"></i> 游戏聊天实时监控</h2>
+                    <div id="chat-container">
+                        <div id="chat-messages">
+                            <div class="message">
+                                <div class="message-avatar">Bot</div>
+                                <div class="message-content">
+                                    <div class="message-header"><span class="message-sender">系统消息</span><span class="message-time" id="current-time">--:--:--</span></div>
+                                    <div class="message-text">正在连接到聊天服务器... 如果长时间无数据，请检查后端服务。</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="controls">
+                            <button class="btn btn-primary" id="btn-clear"><i class="fas fa-broom"></i> 清空聊天记录</button>
+                            <button class="btn btn-outline" id="btn-scroll-bottom"><i class="fas fa-arrow-down"></i> 跳至最新</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 雷达监控页面 -->
+            <div id="radar" class="page">
+                <div class="card">
+                    <h2><i class="fas fa-radar"></i> 附近玩家雷达</h2>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                        <!-- 雷达可视化 -->
+                        <div>
+                            <h3>雷达视图</h3>
+                            <div style="height: 400px; background: #fafafa; border: 1px solid var(--border-color); border-radius: 6px; padding: 16px; position: relative;">
+                                <div id="radar-visualization" class="radar-container">
+                                    <div class="radar-circle">
+                                        <div class="radar-center"></div>
+                                        <div class="radar-grid">
+                                            <!-- 同心圆 -->
+                                            <div style="position: absolute; top: 50%; left: 50%; width: 200px; height: 200px; border: 1px dashed var(--border-color); border-radius: 50%; transform: translate(-50%, -50%);"></div>
+                                            <div style="position: absolute; top: 50%; left: 50%; width: 140px; height: 140px; border: 1px dashed var(--border-color); border-radius: 50%; transform: translate(-50%, -50%);"></div>
+                                            <div style="position: absolute; top: 50%; left: 50%; width: 80px; height: 80px; border: 1px dashed var(--border-color); border-radius: 50%; transform: translate(-50%, -50%);"></div>
+                                            <!-- 坐标轴 -->
+                                            <div style="position: absolute; top: 50%; left: 0; width: 100%; height: 1px; background: var(--border-color);"></div>
+                                            <div style="position: absolute; left: 50%; top: 0; width: 1px; height: 100%; background: var(--border-color);"></div>
+                                        </div>
+                                        <div id="radar-players"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- 附近玩家列表 -->
+                        <div>
+                            <h3>附近玩家列表</h3>
+                            <div style="height: 400px; background: #fafafa; border: 1px solid var(--border-color); border-radius: 6px; padding: 16px; overflow-y: auto;">
+                                <div id="nearby-players">
+                                    <p style="color: var(--text-secondary); text-align: center; margin-top: 160px;">等待雷达数据...</p>
+                                </div>
+                            </div>
+                            <div style="margin-top: 12px; text-align: right;">
+                                <button class="btn btn-sm btn-outline" id="btn-refresh-radar" style="padding: 6px 12px; font-size: 0.75rem;"><i class="fas fa-sync-alt"></i> 刷新雷达</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 轨迹追踪页面 -->
+            <div id="tracking" class="page">
+                <div class="card">
+                    <h2><i class="fas fa-map-marked-alt"></i> 玩家轨迹与热力图</h2>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                        <!-- 玩家轨迹 -->
+                        <div>
+                            <h3>玩家实时轨迹</h3>
+                            <div style="height: 400px; background: #fafafa; border: 1px solid var(--border-color); border-radius: 6px; padding: 16px; overflow-y: auto;">
+                                <div id="player-trajectories">
+                                    <p style="color: var(--text-secondary); text-align: center; margin-top: 120px;">等待玩家数据...</p>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- 热力图 -->
+                        <div>
+                            <h3>活动热力图</h3>
+                            <div style="height: 400px; background: #fafafa; border: 1px solid var(--border-color); border-radius: 6px; padding: 16px;">
+                                <div id="heatmap-container">
+                                    <p style="color: var(--text-secondary); text-align: center; margin-top: 120px;">等待热力图数据...</p>
+                                </div>
+                                <div style="margin-top: 12px; text-align: right;">
+                                    <button class="btn btn-sm btn-outline" id="btn-refresh-heatmap" style="padding: 6px 12px; font-size: 0.75rem;"><i class="fas fa-sync-alt"></i> 刷新数据</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 数据管理页面 -->
+            <div id="database" class="page">
+                <div class="card">
+                    <h2><i class="fas fa-database"></i> 数据库管理</h2>
+                    <div style="margin-bottom: 16px;">
+                        <button class="btn btn-primary" id="btn-view-db" style="margin-right: 12px;"><i class="fas fa-eye"></i> 查看数据库内容</button>
+                        <button class="btn btn-outline" id="btn-clear-db"><i class="fas fa-trash"></i> 清空所有记录</button>
+                    </div>
+                    <div id="db-container" style="background: #fafafa; border: 1px solid var(--border-color); border-radius: 6px; padding: 16px; display: none;">
+                        <div style="margin-bottom: 16px; display: flex; gap: 12px; align-items: center;">
+                            <h3 style="margin: 0; font-size: 0.95rem;">数据库记录</h3>
+                            <select id="db-select" style="padding: 6px 8px; border: 1px solid var(--border-color); border-radius: 4px; font-size: 0.875rem;">
+                                <option value="activity">玩家活动记录</option>
+                                <option value="trajectories">玩家轨迹数据</option>
+                                <option value="heatmap">热力图数据</option>
+                                <option value="last-login">登录信息</option>
+                            </select>
+                            <button class="btn btn-sm btn-outline" id="btn-refresh-db" style="padding: 6px 12px; font-size: 0.75rem;"><i class="fas fa-sync-alt"></i> 刷新</button>
+                            <button class="btn btn-sm btn-outline" id="btn-close-db" style="padding: 6px 12px; font-size: 0.75rem;"><i class="fas fa-times"></i> 关闭</button>
+                        </div>
+                        <div id="db-content" style="height: 400px; overflow-y: auto; background: white; border: 1px solid var(--border-color); border-radius: 4px; padding: 16px; font-family: 'Courier New', monospace; font-size: 0.875rem;">
+                            <p style="color: var(--text-secondary); text-align: center; margin-top: 160px;">选择数据库类型并点击刷新按钮查看内容...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 机器人控制页面 -->
+            <div id="control" class="page">
+                <div class="card">
+                    <h2><i class="fas fa-cogs"></i> 机器人控制中心</h2>
+                    <div class="controls" style="flex-wrap: wrap; gap: 15px;">
+                        <button class="btn btn-primary" id="btn-start-kiss-full"><i class="fas fa-play"></i> 开始自动亲吻指令</button>
+                        <button class="btn btn-outline" id="btn-pause-kiss-full"><i class="fas fa-pause"></i> 暂停指令循环</button>
+                        <button class="btn btn-outline" id="btn-send-test-full"><i class="fas fa-paper-plane"></i> 发送测试消息</button>
+                        <button class="btn btn-danger" id="btn-stop-full"><i class="fas fa-stop-circle"></i> 紧急停止机器人</button>
+                    </div>
+                    
+                    <h3 style="margin: 25px 0 15px;">指令配置</h3>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px;">
+                        <div style="background: #fff9f2; padding: 16px; border-radius: 8px; border: 1px solid var(--border-color);">
+                            <div style="font-weight: 600; color: var(--primary); margin-bottom: 8px;">指令类型</div>
+                            <select style="width: 100%; padding: 8px; border: 1px solid var(--border-color); border-radius: 4px;">
+                                <option>亲吻指令 (/kiss)</option>
+                                <option>跟随指令 (/follow)</option>
+                                <option>护送指令 (/escort)</option>
+                                <option>保护指令 (/protect)</option>
+                            </select>
+                        </div>
+                        <div style="background: #fff9f2; padding: 16px; border-radius: 8px; border: 1px solid var(--border-color);">
+                            <div style="font-weight: 600; color: var(--primary); margin-bottom: 8px;">执行间隔</div>
+                            <input type="number" value="45" style="width: 100%; padding: 8px; border: 1px solid var(--border-color); border-radius: 4px;" placeholder="秒">
+                        </div>
+                        <div style="background: #fff9f2; padding: 16px; border-radius: 8px; border: 1px solid var(--border-color);">
+                            <div style="font-weight: 600; color: var(--primary); margin-bottom: 8px;">目标玩家</div>
+                            <input type="text" value="某某" style="width: 100%; padding: 8px; border: 1px solid var(--border-color); border-radius: 4px;" placeholder="玩家名">
+                        </div>
+                    </div>
+                    
+                    <h3 style="margin: 25px 0 15px;">手动指令发送</h3>
+                    <div style="display: flex; gap: 12px;">
+                        <input type="text" id="manual-cmd-full" placeholder="输入 Minecraft 指令，例如 /say Hello">
+                        <button class="btn btn-primary" id="btn-send-cmd-full"><i class="fas fa-paper-plane"></i> 发送指令</button>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <h2><i class="fas fa-history"></i> 指令执行历史</h2>
+                    <div style="background: #fafafa; border: 1px solid var(--border-color); border-radius: 6px; padding: 16px; height: 300px; overflow-y: auto;">
+                        <div id="command-history">
+                            <p style="color: var(--text-secondary); text-align: center; margin-top: 120px;">暂无指令执行记录...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <footer>
+                <p><i class="fas fa-exclamation-triangle"></i> 提示：本工具仅用于授权服务器的管理与测试。请遵守服务器规则，谨慎使用自动指令功能。</p>
+                <p style="margin-top: 5px; font-size: 0.7em;">界面版本：v3.0 | 最后更新：<span id="page-load-time">--</span></p>
+            </footer>
+        </div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        // 初始化
+        const socket = io();
+        let messageCount = 0, commandCount = 0, startTime = Date.now();
+
+        // 页面切换功能
+        document.querySelectorAll('.nav-item').forEach(item => {
+            item.addEventListener('click', () => {
+                // 更新导航状态
+                document.querySelectorAll('.nav-item').forEach(nav => nav.classList.remove('active'));
+                item.classList.add('active');
+                
+                // 显示对应页面
+                const pageId = item.getAttribute('data-page');
+                document.querySelectorAll('.page').forEach(page => {
+                    page.classList.remove('active');
+                });
+                document.getElementById(pageId).classList.add('active');
+                
+                // 页面切换时加载对应数据
+                switch(pageId) {
+                    case 'radar':
+                        updateRadar(); // 刷新雷达数据
+                        break;
+                    case 'tracking':
+                        // 刷新轨迹和热力图数据
+                        fetch('/api/trajectories')
+                            .then(response => response.json())
+                            .then(data => {
+                                renderPlayerTrajectories(data);
+                            })
+                            .catch(err => console.error('Failed to load trajectories:', err));
+                        fetch('/api/heatmap')
+                            .then(response => response.json())
+                            .then(data => {
+                                renderHeatmap(data);
+                            })
+                            .catch(err => console.error('Failed to load heatmap:', err));
+                        break;
+                    case 'database':
+                        // 数据库页面不需要自动加载，等待用户点击
+                        break;
+                    case 'chat':
+                        // 聊天页面会自动接收WebSocket消息
+                        break;
+                }
+            });
+        });
+
+        // 1. 更新状态
+        function updateStatus(status, type = 'connecting') {
+            const badge = document.getElementById('status-badge');
+            const text = document.getElementById('status-text');
+            text.textContent = status;
+            badge.className = 'status-badge ' + type;
+            const icons = { connecting: 'fa-sync-alt fa-spin', success: 'fa-check-circle', error: 'fa-exclamation-circle'};
+            badge.innerHTML = `<i class="fas ${icons[type] || 'fa-circle'}"></i> <span id="status-text">${status}</span>`;
+        }
+        updateStatus('正在连接至 WebSocket 后端...', 'connecting');
+
+        // 2. 监听后端事件
+        socket.on('connect', () => {
+            console.log('[前端] 已连接到 WebSocket 服务器');
+            updateStatus('已连接，等待游戏数据...', 'success');
+        });
+        socket.on('status', (status) => {
+            console.log('[前端] 收到状态:', status);
+            updateStatus(status, status.includes('错误') || status.includes('断开') ? 'error' : 'success');
+        });
+        socket.on('chat', (data) => {
+            messageCount++;
+            document.getElementById('info-msg-count').textContent = messageCount;
+            // 判断是否为指令执行消息
+            if (data.text && (data.text.includes('/kiss') || data.text.includes('[动作]'))) {
+                commandCount++;
+                document.getElementById('info-cmd-count').textContent = commandCount;
+            }
+            addMessageToChat(data.text, data.time || new Date().toLocaleTimeString());
+        });
+        socket.on('chat-history', (history) => {
+            const chatMessages = document.getElementById('chat-messages');
+            chatMessages.innerHTML = '';
+            history.forEach(item => addMessageToChat(item.text, item.time));
+            messageCount = history.length;
+            document.getElementById('info-msg-count').textContent = messageCount;
+        });
+
+        // 3. 添加消息到聊天框
+        function addMessageToChat(text, time) {
+            const chatMessages = document.getElementById('chat-messages');
+            if (!chatMessages) return; // 如果不在聊天页面则返回
+            
+            const msgEl = document.createElement('div');
+            msgEl.className = 'message';
+            // 简单判断消息来源
+            let sender = '其他玩家', avatar = '?', bg = '#2563eb';
+            if (text.includes('机器人') || text.includes('/kiss') || text.includes('[动作]')) {
+                sender = '机器人'; avatar = 'R'; bg = '#10b981';
+                msgEl.classList.add('robot');
+            } else if (text.toLowerCase().includes('error') || text.includes('断开') || text.includes('失败')) {
+                sender = '系统'; avatar = '!'; bg = '#ef4444';
+            }
+            msgEl.innerHTML = `
+                <div class="message-avatar" style="background: ${bg}">${avatar}</div>
+                <div class="message-content">
+                    <div class="message-header"><span class="message-sender">${sender}</span><span class="message-time">${time}</span></div>
+                    <div class="message-text">${escapeHtml(text)}</div>
+                </div>`;
+            chatMessages.appendChild(msgEl);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+        function escapeHtml(text) { return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
+
+        // 4. 更新统计信息
+        function updateUptime() {
+            const uptimeMs = Date.now() - startTime;
+            const mins = Math.floor(uptimeMs / 60000);
+            const hrs = Math.floor(mins / 60);
+            const display = hrs > 0 ? `${hrs}h ${mins % 60}m` : `${mins}m`;
+            document.getElementById('info-uptime').textContent = display;
+            document.getElementById('current-time').textContent = new Date().toLocaleTimeString();
+        }
+        setInterval(updateUptime, 1000);
+        updateUptime();
+        document.getElementById('page-load-time').textContent = new Date().toLocaleDateString() + ' ' + new Date().toLocaleTimeString().substring(0,5);
+
+        // 5. 按钮事件绑定
+        document.getElementById('btn-clear')?.addEventListener('click', () => {
+            const chatMessages = document.getElementById('chat-messages');
+            if (!chatMessages || chatMessages.children.length <= 1) return;
+            if (confirm('确定要清空所有聊天记录吗？')) {
+                chatMessages.innerHTML = `<div class="message">
+                    <div class="message-avatar">Bot</div><div class="message-content">
+                    <div class="message-header"><span class="message-sender">系统</span><span class="message-time">${new Date().toLocaleTimeString()}</span></div>
+                    <div class="message-text">聊天记录已清空。</div></div></div>`;
+            }
+        });
+        document.getElementById('btn-scroll-bottom')?.addEventListener('click', () => {
+            const chatMessages = document.getElementById('chat-messages');
+            if (chatMessages) chatMessages.scrollTop = chatMessages.scrollHeight;
+        });
+        document.getElementById('btn-stop')?.addEventListener('click', () => {
+            if (confirm('紧急停止将尝试让机器人退出游戏。确定要继续吗？')) {
+                socket.emit('command', 'stop');
+                addMessageToChat('[用户] 已发送紧急停止指令。', new Date().toLocaleTimeString());
+            }
+        });
+        document.getElementById('btn-start-kiss')?.addEventListener('click', () => socket.emit('command', 'start'));
+        document.getElementById('btn-pause-kiss')?.addEventListener('click', () => socket.emit('command', 'pause'));
+        document.getElementById('btn-send-test')?.addEventListener('click', () => {
+            socket.emit('command', 'test');
+            addMessageToChat('[用户] 发送了测试命令。', new Date().toLocaleTimeString());
+        });
+        document.getElementById('btn-send-cmd')?.addEventListener('click', sendManualCommand);
+        document.getElementById('manual-cmd')?.addEventListener('keypress', (e) => { if (e.key === 'Enter') sendManualCommand(); });
+        
+        // 全局控制按钮事件
+        document.getElementById('btn-start-kiss-full')?.addEventListener('click', () => socket.emit('command', 'start'));
+        document.getElementById('btn-pause-kiss-full')?.addEventListener('click', () => socket.emit('command', 'pause'));
+        document.getElementById('btn-send-test-full')?.addEventListener('click', () => {
+            socket.emit('command', 'test');
+            addMessageToChat('[用户] 发送了测试命令。', new Date().toLocaleTimeString());
+        });
+        document.getElementById('btn-stop-full')?.addEventListener('click', () => {
+            if (confirm('紧急停止将尝试让机器人退出游戏。确定要继续吗？')) {
+                socket.emit('command', 'stop');
+                addMessageToChat('[用户] 已发送紧急停止指令。', new Date().toLocaleTimeString());
+            }
+        });
+        document.getElementById('btn-send-cmd-full')?.addEventListener('click', sendManualCommandFull);
+        document.getElementById('manual-cmd-full')?.addEventListener('keypress', (e) => { if (e.key === 'Enter') sendManualCommandFull(); });
+        
+        function sendManualCommand() {
+            const cmd = document.getElementById('manual-cmd').value.trim();
+            if (!cmd) return alert('请输入指令');
+            socket.emit('command', cmd);
+            addMessageToChat(`[手动指令] ${cmd}`, new Date().toLocaleTimeString());
+            document.getElementById('manual-cmd').value = '';
+        }
+        
+        function sendManualCommandFull() {
+            const cmd = document.getElementById('manual-cmd-full').value.trim();
+            if (!cmd) return alert('请输入指令');
+            socket.emit('command', cmd);
+            addMessageToChat(`[手动指令] ${cmd}`, new Date().toLocaleTimeString());
+            document.getElementById('manual-cmd-full').value = '';
+        }
+
+        // 6. 初始连接提示
+        socket.on('connect_error', (err) => {
+            console.error('[前端] WebSocket 连接错误:', err);
+            updateStatus('连接后端失败: ' + (err.message || '未知错误'), 'error');
+            addMessageToChat(`[系统] 无法连接到机器人后端服务 (${err.message})。请确保 bot-server.js 正在运行。`, new Date().toLocaleTimeString());
+        });
+        // 模拟初始加载完成
+        setTimeout(() => {
+            if (messageCount === 0) {
+                addMessageToChat('[系统] 前端界面已就绪。等待游戏聊天数据...', new Date().toLocaleTimeString());
+            }
+        }, 1500);
+
+        // ==================== 新增：玩家轨迹和热力图功能 ====================
+        
+        // 监听玩家位置更新
+        socket.on('player-position', (data) => {
+            updatePlayerTrajectory(data);
+        });
+
+        // 监听玩家轨迹数据
+        socket.on('player-trajectories', (trajectories) => {
+            renderPlayerTrajectories(trajectories);
+        });
+
+        // 监听热力图数据
+        socket.on('heatmap-data', (data) => {
+            renderHeatmap(data);
+        });
+
+        // 监听玩家加入事件
+        socket.on('player-joined', (data) => {
+            addMessageToChat(`[系统] ${data.username} 加入了游戏`, new Date().toLocaleTimeString());
+        });
+
+        // 监听玩家离开事件
+        socket.on('player-left', (data) => {
+            addMessageToChat(`[系统] ${data.username} 离开了游戏`, new Date().toLocaleTimeString());
+        });
+
+        // 更新玩家轨迹显示
+        function updatePlayerTrajectory(data) {
+            // 这里可以实现实时轨迹更新
+            // 简化实现：仅更新轨迹列表
+        }
+
+        // 渲染玩家轨迹
+        function renderPlayerTrajectories(trajectories) {
+            const container = document.getElementById('player-trajectories');
+            if (!container) return;
+            
+            if (Object.keys(trajectories).length === 0) {
+                container.innerHTML = '<p style="color: var(--text-secondary); text-align: center; margin-top: 120px;">暂无玩家轨迹数据...</p>';
+                return;
+            }
+            
+            let html = '';
+            for (const username in trajectories) {
+                const points = trajectories[username];
+                if (points.length === 0) continue;
+                
+                const lastPoint = points[points.length - 1];
+                const firstPoint = points[0];
+                
+                html += `
+                    <div style="margin-bottom: 16px; padding: 12px; background: white; border-radius: 4px; border: 1px solid var(--border-color);">
+                        <h4 style="font-size: 0.875rem; font-weight: 600; margin-bottom: 8px; color: var(--primary);">${username}</h4>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 0.75rem;">
+                            <div>
+                                <span style="color: var(--text-secondary);">最新位置:</span>
+                                <div style="font-weight: 500;">X: ${lastPoint.x}, Y: ${lastPoint.y}, Z: ${lastPoint.z}</div>
+                            </div>
+                            <div>
+                                <span style="color: var(--text-secondary);">轨迹点数:</span>
+                                <div style="font-weight: 500;">${points.length}</div>
+                            </div>
+                        </div>
+                        <div style="margin-top: 8px; font-size: 0.7rem; color: var(--text-secondary);">
+                            跟踪时间: ${new Date(firstPoint.time).toLocaleString()} 至 ${new Date(lastPoint.time).toLocaleString()}
+                        </div>
+                    </div>
+                `;
+            }
+            
+            container.innerHTML = html;
+        }
+
+        // 渲染热力图
+        function renderHeatmap(data) {
+            const container = document.getElementById('heatmap-container');
+            if (!container) return;
+            
+            if (data.length === 0) {
+                container.innerHTML = '<p style="color: var(--text-secondary); text-align: center; margin-top: 120px;">暂无热力图数据...</p>';
+                return;
+            }
+            
+            // 简化的热力图渲染：显示统计数据和最近活动
+            const recentData = data.slice(-50); // 显示最近50个数据点
+            const playerStats = {};
+            
+            // 统计每个玩家的活动次数
+            recentData.forEach(point => {
+                if (!playerStats[point.username]) {
+                    playerStats[point.username] = 0;
+                }
+                playerStats[point.username]++;
+            });
+            
+            let html = `
+                <div style="margin-bottom: 16px;">
+                    <h4 style="font-size: 0.875rem; font-weight: 600; margin-bottom: 12px;">热力图统计</h4>
+                    <div style="margin-bottom: 12px;">
+                        <div style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 4px;">总数据点数: ${data.length}</div>
+                        <div style="font-size: 0.75rem; color: var(--text-secondary);">最近活动点: ${recentData.length}</div>
+                    </div>
+                    
+                    <h5 style="font-size: 0.8rem; font-weight: 600; margin-bottom: 8px;">玩家活动分布</h5>
+                    <div style="display: flex; flex-direction: column; gap: 6px;">
+            `;
+            
+            for (const username in playerStats) {
+                const count = playerStats[username];
+                const percentage = Math.round((count / recentData.length) * 100);
+                
+                html += `
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <span style="font-size: 0.75rem; font-weight: 500; width: 120px;">${username}:</span>
+                        <div style="flex: 1; height: 8px; background: #e5e7eb; border-radius: 4px; overflow: hidden;">
+                            <div style="height: 100%; width: ${percentage}%; background: var(--primary); border-radius: 4px;"></div>
+                        </div>
+                        <span style="font-size: 0.7rem; color: var(--text-secondary);">${count} 次 (${percentage}%)</span>
+                    </div>
+                `;
+            }
+            
+            html += `
+                    </div>
+                </div>
+                
+                <h5 style="font-size: 0.8rem; font-weight: 600; margin-bottom: 8px;">最近活动位置</h5>
+                <div style="max-height: 150px; overflow-y: auto; font-size: 0.7rem;">
+            `;
+            
+            // 显示最近10个活动位置
+            recentData.slice(-10).reverse().forEach((point, index) => {
+                html += `
+                    <div style="padding: 4px 0; border-bottom: 1px solid #f3f4f6;">
+                        <span style="color: var(--text-secondary);">${new Date(point.time).toLocaleTimeString()}</span> - 
+                        <span style="font-weight: 500;">${point.username}</span> 
+                        <span style="color: var(--text-secondary);">在</span> 
+                        <span>(${point.x}, ${point.y}, ${point.z})</span>
+                    </div>
+                `;
+            });
+            
+            html += '</div>';
+            
+            container.innerHTML = html;
+        }
+
+        // 刷新热力图数据
+        document.getElementById('btn-refresh-heatmap')?.addEventListener('click', () => {
+            // 从API获取最新数据
+            fetch('/api/heatmap')
+                .then(response => response.json())
+                .then(data => {
+                    renderHeatmap(data);
+                })
+                .catch(err => {
+                    console.error('Failed to refresh heatmap data:', err);
+                });
+        });
+
+        // 定期更新数据
+        setInterval(() => {
+            fetch('/api/trajectories')
+                .then(response => response.json())
+                .then(data => {
+                    renderPlayerTrajectories(data);
+                })
+                .catch(err => {
+                    // 忽略错误
+                });
+        }, 10000); // 每10秒更新一次
+
+        // 初始加载数据
+        window.addEventListener('load', () => {
+            // 加载服务器信息
+            fetch('/api/server-info')
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('info-server').textContent = `${data.host}:${data.port}`;
+                    document.getElementById('info-target').textContent = data.targetPlayer;
+                    document.getElementById('info-interval').textContent = `${data.commandDelay} 毫秒`;
+                })
+                .catch(err => {
+                    // 忽略错误
+                });
+                
+            // 初始化雷达
+            updateRadar();
+        });
+        
+        // ==================== 雷达功能实现 ====================
+        
+        // 雷达配置
+        const RADAR_RADIUS = 140; // 雷达可视化半径
+        const MAX_RADAR_DISTANCE = 100; // 最大雷达距离
+        
+        // 更新雷达数据
+        function updateRadar() {
+            fetch('/api/radar')
+                .then(response => response.json())
+                .then(data => {
+                    renderRadar(data);
+                    renderNearbyPlayers(data);
+                })
+                .catch(err => {
+                    console.error('Failed to update radar:', err);
+                });
+        }
+        
+        // 渲染雷达可视化
+        function renderRadar(players) {
+            const radarPlayers = document.getElementById('radar-players');
+            if (!radarPlayers) return;
+            
+            // 清空现有玩家标记
+            radarPlayers.innerHTML = '';
+            
+            if (players.length === 0) {
+                return;
+            }
+            
+            players.forEach(player => {
+                // 计算相对位置
+                const normalizedDistance = Math.min(player.distance / MAX_RADAR_DISTANCE, 1);
+                const angle = Math.atan2(player.position.z, player.position.x);
+                
+                // 计算雷达上的位置
+                const x = RADAR_RADIUS * normalizedDistance * Math.cos(angle);
+                const z = RADAR_RADIUS * normalizedDistance * Math.sin(angle);
+                
+                // 创建玩家标记
+                const playerMarker = document.createElement('div');
+                playerMarker.className = 'radar-player';
+                playerMarker.style.cssText = `
+                    position: absolute;
+                    top: 50%;
+                    left: 50%;
+                    margin-left: ${x}px;
+                    margin-top: ${z}px;
+                `;
+                
+                // 添加悬停提示
+                playerMarker.title = `${player.username} (${player.distance}m)`;
+                
+                radarPlayers.appendChild(playerMarker);
+            });
+        }
+        
+        // 渲染附近玩家列表
+        function renderNearbyPlayers(players) {
+            const container = document.getElementById('nearby-players');
+            if (!container) return;
+            
+            if (players.length === 0) {
+                container.innerHTML = '<p style="color: var(--text-secondary); text-align: center; margin-top: 160px;">附近没有玩家...</p>';
+                return;
+            }
+            
+            // 按距离排序
+            players.sort((a, b) => a.distance - b.distance);
+            
+            let html = '';
+            players.forEach(player => {
+                const healthPercentage = Math.round((player.health / 20) * 100);
+                
+                html += `
+                    <div style="margin-bottom: 12px; padding: 12px; background: white; border-radius: 4px; border: 1px solid var(--border-color);">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <span style="font-weight: 600; color: var(--primary);">${player.username}</span>
+                                <span style="font-size: 0.7rem; color: var(--text-secondary);">
+                                    ${player.distance}m
+                                    ${player.isSneaking ? ' 🥷' : ''}
+                                    ${player.isSprinting ? ' 🏃' : ''}
+                                </span>
+                            </div>
+                            <span style="font-size: 0.75rem; font-weight: 500; color: ${player.health > 10 ? '#10b981' : player.health > 5 ? '#f59e0b' : '#ef4444'}">
+                                ❤️ ${player.health}/20
+                            </span>
+                        </div>
+                        
+                        <div style="margin-bottom: 4px;">
+                            <span style="font-size: 0.7rem; color: var(--text-secondary);">位置: </span>
+                            <span style="font-size: 0.75rem;">(${player.position.x}, ${player.position.y}, ${player.position.z})</span>
+                        </div>
+                        
+                        <!-- 健康条 -->
+                        <div style="height: 6px; background: #e5e7eb; border-radius: 3px; overflow: hidden;">
+                            <div style="height: 100%; width: ${healthPercentage}%; background: ${healthPercentage > 50 ? '#10b981' : healthPercentage > 25 ? '#f59e0b' : '#ef4444'}; border-radius: 3px;"></div>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            container.innerHTML = html;
+        }
+        
+        // 添加雷达刷新按钮事件
+        document.getElementById('btn-refresh-radar')?.addEventListener('click', updateRadar);
+        
+        // 定期更新雷达数据
+        setInterval(updateRadar, 50); // 50毫秒一次，约20次/秒
+
+        // ==================== 数据库管理功能 ====================
+        
+        // 数据库查看功能
+        const dbContainer = document.getElementById('db-container');
+        const dbContent = document.getElementById('db-content');
+        const dbSelect = document.getElementById('db-select');
+        
+        // 查看数据库按钮点击事件
+        document.getElementById('btn-view-db')?.addEventListener('click', () => {
+            if (dbContainer) dbContainer.style.display = 'block';
+            loadDbData();
+        });
+        
+        // 关闭数据库查看
+        document.getElementById('btn-close-db')?.addEventListener('click', () => {
+            if (dbContainer) dbContainer.style.display = 'none';
+        });
+        
+        // 刷新数据库数据
+        document.getElementById('btn-refresh-db')?.addEventListener('click', loadDbData);
+        
+        // 切换数据库类型
+        dbSelect?.addEventListener('change', loadDbData);
+        
+        // 加载数据库数据
+        function loadDbData() {
+            if (!dbContent || !dbSelect) return;
+            
+            const dbType = dbSelect.value;
+            let apiUrl = '';
+            
+            switch (dbType) {
+                case 'activity':
+                    apiUrl = '/api/activity-log';
+                    break;
+                case 'trajectories':
+                    apiUrl = '/api/trajectories';
+                    break;
+                case 'heatmap':
+                    apiUrl = '/api/heatmap';
+                    break;
+                case 'last-login':
+                    apiUrl = '/api/last-login';
+                    break;
+                default:
+                    apiUrl = '/api/activity-log';
+            }
+            
+            dbContent.innerHTML = '<p style="color: var(--text-secondary); text-align: center; margin-top: 160px;">正在加载数据...</p>';
+            
+            fetch(apiUrl)
+                .then(response => response.json())
+                .then(data => {
+                    if (Array.isArray(data)) {
+                        // 数组类型数据（活动记录、热力图数据）
+                        if (data.length === 0) {
+                            dbContent.innerHTML = '<p style="color: var(--text-secondary); text-align: center; margin-top: 160px;">暂无数据...</p>';
+                            return;
+                        }
+                        
+                        let html = '';
+                        // 每个玩家一行显示，按照玩家分组
+                        if (dbType === 'activity') {
+                            // 活动记录按时间倒序显示
+                            const sortedData = [...data].sort((a, b) => new Date(b.time) - new Date(a.time));
+                            html = sortedData.map(item => {
+                                return `<div style="margin-bottom: 8px; padding: 8px; background: white; border-radius: 4px; border: 1px solid var(--border-color); font-size: 0.875rem;">
+                                    <strong>${item.username}</strong> ${item.event === 'joined' ? '加入' : '离开'} 游戏 - ${new Date(item.time).toLocaleString()}
+                                </div>`;
+                            }).join('');
+                        } else if (dbType === 'heatmap') {
+                            // 热力图数据只显示最近的50条
+                            const recentData = data.slice(-50).reverse();
+                            html = recentData.map(item => {
+                                return `<div style="margin-bottom: 6px; padding: 6px; background: white; border-radius: 4px; border: 1px solid var(--border-color); font-size: 0.8rem;">
+                                    ${new Date(item.time).toLocaleTimeString()} - ${item.username} 在 (${item.x}, ${item.y}, ${item.z})
+                                </div>`;
+                            }).join('');
+                        } else {
+                            // 其他数组类型
+                            html = data.map((item, index) => {
+                                return `<div style="margin-bottom: 6px; padding: 6px; background: white; border-radius: 4px; border: 1px solid var(--border-color); font-size: 0.8rem;">
+                                    ${index + 1}. ${JSON.stringify(item, null, 2)}
+                                </div>`;
+                            }).join('');
+                        }
+                        
+                        dbContent.innerHTML = html;
+                    } else if (typeof data === 'object') {
+                        // 对象类型数据（轨迹数据、登录信息）
+                        if (dbType === 'trajectories') {
+                            // 轨迹数据按玩家分组
+                            let html = '';
+                            for (const username in data) {
+                                const trajectory = data[username];
+                                if (trajectory && trajectory.length > 0) {
+                                    const lastPoint = trajectory[trajectory.length - 1];
+                                    html += `<div style="margin-bottom: 12px; padding: 12px; background: white; border-radius: 4px; border: 1px solid var(--border-color);">
+                                        <div style="font-weight: 600; color: var(--primary); margin-bottom: 8px;">${username}</div>
+                                        <div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 8px;">轨迹点数: ${trajectory.length} | 最新位置: (${lastPoint.position.x}, ${lastPoint.position.y}, ${lastPoint.position.z})</div>
+                                        <div style="font-size: 0.75rem; max-height: 100px; overflow-y: auto; background: #fafafa; padding: 8px; border-radius: 4px; border: 1px solid var(--border-color);">
+                                            ${trajectory.map((point, index) => {
+                                                return `<div style="margin-bottom: 4px;">${index + 1}. (${point.position.x}, ${point.position.y}, ${point.position.z}) - ${new Date(point.time).toLocaleTimeString()}</div>`;
+                                            }).slice(-5).join('')}
+                                            ${trajectory.length > 5 ? `<div style="text-align: center; color: var(--text-secondary); margin-top: 4px;">... 还有 ${trajectory.length - 5} 条记录</div>` : ''}
+                                        </div>
+                                    </div>`;
+                                }
+                            }
+                            dbContent.innerHTML = html || '<p style="color: var(--text-secondary); text-align: center; margin-top: 160px;">暂无数据...</p>';
+                        } else {
+                            // 其他对象类型（如登录信息）
+                            dbContent.innerHTML = `<pre style="white-space: pre-wrap; word-wrap: break-word; background: white; padding: 16px; border-radius: 4px; border: 1px solid var(--border-color);">${JSON.stringify(data, null, 2)}</pre>`;
+                        }
+                    } else {
+                        // 其他类型数据
+                        dbContent.innerHTML = `<div style="text-align: center; margin-top: 160px;">${JSON.stringify(data)}</div>`;
+                    }
+                })
+                .catch(err => {
+                    console.error('Failed to load database data:', err);
+                    dbContent.innerHTML = '<p style="color: var(--danger); text-align: center; margin-top: 160px;">加载失败: ' + err.message + '</p>';
+                });
+        }
+        
+        // 清空所有记录按钮点击事件
+        document.getElementById('btn-clear-db')?.addEventListener('click', () => {
+            if (confirm('确定要清空所有数据库记录吗？此操作不可恢复！')) {
+                fetch('/api/clear-records', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        addMessageToChat('[系统] 数据库记录已清空。', new Date().toLocaleTimeString());
+                        // 重新加载数据
+                        if (dbContainer && dbContainer.style.display === 'block') {
+                            loadDbData();
+                        }
+                    } else {
+                        addMessageToChat('[系统] 清空数据库失败: ' + data.message, new Date().toLocaleTimeString());
+                    }
+                })
+                .catch(err => {
+                    console.error('Failed to clear database records:', err);
+                    addMessageToChat('[系统] 清空数据库失败: ' + err.message, new Date().toLocaleTimeString());
+                });
+            }
+        });
+        
+        // 添加API端点 - 查看登录信息
+        fetch('/api/last-login')
+            .then(response => response.ok)
+            .catch(err => {
+                // 如果API不存在，忽略错误
+            });
+    </script>
+</body>
+</html>

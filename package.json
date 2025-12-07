@@ -1,0 +1,20 @@
+{
+  "name": "minecraft-kiss-bot-v2",
+  "version": "2.0.0",
+  "description": "Minecraft 自动指令机器人，支持高频执行 /kiss 命令",
+  "main": "bot-server.js",
+  "scripts": {
+    "start": "node bot-server.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": ["minecraft", "bot", "mineflayer"],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "dotenv": "^17.2.3",
+    "express": "^5.2.1",
+    "mineflayer": "^4.25.0",
+    "socket.io": "^4.8.1"
+  }
+}
