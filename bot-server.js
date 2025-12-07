@@ -128,14 +128,132 @@ const io = socketIo(server);
 app.use(express.static(path.join(__dirname, 'public')));
 
 // 添加API端点
-// 获取当前所有玩家轨迹数据
+// 获取当前所有玩家轨迹数据（支持分页）
 app.get('/api/trajectories', (req, res) => {
-  res.json(Object.fromEntries(playerTrajectories));
+  const limit = parseInt(req.query.limit) || 500; // 默认返回最近500个点
+  const offset = parseInt(req.query.offset) || 0;
+  const username = req.query.username; // 可选：指定玩家
+  
+  const result = {};
+  
+  const playersToProcess = username 
+    ? [[username, playerTrajectories.get(username) || []]]
+    : playerTrajectories.entries();
+  
+  for (const [playerName, points] of playersToProcess) {
+    if (points && points.length > 0) {
+      // 计算分页范围
+      const start = Math.max(0, points.length - limit - offset);
+      const end = Math.max(0, points.length - offset);
+      result[playerName] = points.slice(start, end);
+    }
+  }
+  
+  res.json({
+    data: result,
+    metadata: {
+      totalPlayers: username ? 1 : playerTrajectories.size,
+      timestamp: new Date().toISOString(),
+      limit: limit,
+      offset: offset,
+      hasMore: username 
+        ? (playerTrajectories.has(username) && playerTrajectories.get(username).length > offset + limit)
+        : false
+    }
+  });
 });
 
-// 获取热力图数据
+// 获取指定玩家的轨迹数据（支持分页和时间范围）
+app.get('/api/trajectories/:username', (req, res) => {
+  const username = req.params.username;
+  const limit = parseInt(req.query.limit) || 500;
+  const offset = parseInt(req.query.offset) || 0;
+  const startTime = req.query.startTime;
+  const endTime = req.query.endTime;
+  
+  if (playerTrajectories.has(username)) {
+    let points = playerTrajectories.get(username);
+    
+    // 时间范围过滤
+    if (startTime || endTime) {
+      points = points.filter(point => {
+        const pointTime = new Date(point.time).getTime();
+        const start = startTime ? new Date(startTime).getTime() : 0;
+        const end = endTime ? new Date(endTime).getTime() : Infinity;
+        return pointTime >= start && pointTime <= end;
+      });
+    }
+    
+    // 分页计算
+    const start = Math.max(0, points.length - limit - offset);
+    const end = Math.max(0, points.length - offset);
+    const paginatedPoints = points.slice(start, end);
+    
+    res.json({
+      data: paginatedPoints,
+      metadata: {
+        totalPoints: points.length,
+        limit: limit,
+        offset: offset,
+        hasMore: points.length > offset + limit,
+        username: username,
+        timestamp: new Date().toISOString()
+      }
+    });
+  } else {
+    res.json({
+      data: [],
+      metadata: {
+        totalPoints: 0,
+        limit: limit,
+        offset: offset,
+        hasMore: false,
+        username: username,
+        timestamp: new Date().toISOString()
+      }
+    });
+  }
+});
+
+// 获取热力图数据（支持分页和时间范围）
 app.get('/api/heatmap', (req, res) => {
-  res.json(heatmapData);
+  const limit = parseInt(req.query.limit) || 5000; // 默认返回最近5000个点
+  const offset = parseInt(req.query.offset) || 0;
+  const startTime = req.query.startTime;
+  const endTime = req.query.endTime;
+  const username = req.query.username;
+  
+  // 应用过滤条件
+  let filteredData = [...heatmapData];
+  
+  if (startTime || endTime) {
+    filteredData = filteredData.filter(point => {
+      const pointTime = new Date(point.time).getTime();
+      const start = startTime ? new Date(startTime).getTime() : 0;
+      const end = endTime ? new Date(endTime).getTime() : Infinity;
+      return pointTime >= start && pointTime <= end;
+    });
+  }
+  
+  if (username) {
+    filteredData = filteredData.filter(point => point.username === username);
+  }
+  
+  // 分页计算
+  const start = Math.max(0, filteredData.length - limit - offset);
+  const end = Math.max(0, filteredData.length - offset);
+  const paginatedData = filteredData.slice(start, end);
+  
+  res.json({
+    data: paginatedData,
+    metadata: {
+      totalPoints: filteredData.length,
+      limit: limit,
+      offset: offset,
+      hasMore: filteredData.length > offset + limit,
+      timestamp: new Date().toISOString()
+    }
+  });
 });
 
 // 获取服务器信息
@@ -147,13 +265,54 @@ app.get('/api/server-info', (req, res) => {
     commandDelay: COMMAND_DELAY,
     webPort: WEB_PORT,
     botState: botState,
-    playerCount: bot ? Object.keys(bot.players).length : 0
+    playerCount: bot ? Object.keys(bot.players).length : 0,
+    dataStats: {
+      trajectories: playerTrajectories.size,
+      heatmap: heatmapData.length,
+      activity: playerActivityLog.length
+    }
   });
 });
 
-// 获取玩家活动日志
+// 获取玩家活动日志（支持分页和时间范围）
 app.get('/api/activity-log', (req, res) => {
-  res.json(playerActivityLog);
+  const limit = parseInt(req.query.limit) || 500; // 默认返回最近500条记录
+  const offset = parseInt(req.query.offset) || 0;
+  const startTime = req.query.startTime;
+  const endTime = req.query.endTime;
+  const eventType = req.query.eventType; // joined, left
+  
+  // 应用过滤条件
+  let filteredLog = [...playerActivityLog];
+  
+  if (startTime || endTime) {
+    filteredLog = filteredLog.filter(entry => {
+      const entryTime = new Date(entry.time).getTime();
+      const start = startTime ? new Date(startTime).getTime() : 0;
+      const end = endTime ? new Date(endTime).getTime() : Infinity;
+      return entryTime >= start && entryTime <= end;
+    });
+  }
+  
+  if (eventType) {
+    filteredLog = filteredLog.filter(entry => entry.event === eventType);
+  }
+  
+  // 分页计算
+  const start = Math.max(0, filteredLog.length - limit - offset);
+  const end = Math.max(0, filteredLog.length - offset);
+  const paginatedLog = filteredLog.slice(start, end);
+  
+  res.json({
+    data: paginatedLog,
+    metadata: {
+      totalEntries: filteredLog.length,
+      limit: limit,
+      offset: offset,
+      hasMore: filteredLog.length > offset + limit,
+      timestamp: new Date().toISOString()
+    }
+  });
 });
 
 // 获取登录信息
@@ -195,13 +354,21 @@ app.post('/api/clear-records', (req, res) => {
   }
 });
 
-// 获取附近玩家雷达数据
+// 获取附近玩家雷达数据（支持距离过滤）
 app.get('/api/radar', (req, res) => {
   if (!bot || !bot.players || !bot.player) {
-    res.json([]);
+    res.json({
+      data: [],
+      metadata: {
+        timestamp: new Date().toISOString(),
+        botPosition: null,
+        playerCount: 0
+      }
+    });
     return;
   }
   
+  const maxDistance = parseInt(req.query.maxDistance) || 100;
   const nearbyPlayers = [];
   const botPos = bot.entity.position;
   
@@ -212,22 +379,64 @@ app.get('/api/radar', (req, res) => {
       const playerPos = player.entity.position;
       const distance = botPos.distanceTo(playerPos);
       
-      nearbyPlayers.push({
-        username: username,
-        position: {
-          x: Math.round(playerPos.x),
-          y: Math.round(playerPos.y),
-          z: Math.round(playerPos.z)
-        },
-        distance: Math.round(distance),
-        health: player.entity.health || 0,
-        isSneaking: player.entity.sneaking || false,
-        isSprinting: player.entity.sprinting || false
-      });
+      if (distance <= maxDistance) {
+        nearbyPlayers.push({
+          username: username,
+          position: {
+            x: Math.round(playerPos.x),
+            y: Math.round(playerPos.y),
+            z: Math.round(playerPos.z)
+          },
+          distance: Math.round(distance),
+          health: player.entity.health || 0,
+          isSneaking: player.entity.sneaking || false,
+          isSprinting: player.entity.sprinting || false
+        });
+      }
     }
   }
   
-  res.json(nearbyPlayers);
+  res.json({
+    data: nearbyPlayers,
+    metadata: {
+      timestamp: new Date().toISOString(),
+      botPosition: {
+        x: Math.round(botPos.x),
+        y: Math.round(botPos.y),
+        z: Math.round(botPos.z)
+      },
+      playerCount: nearbyPlayers.length,
+      maxDistance: maxDistance
+    }
+  });
+});
+
+// 获取最新数据快照（轻量级API，适合高频调用）
+app.get('/api/latest-data', (req, res) => {
+  const result = {
+    players: [],
+    timestamp: new Date().toISOString()
+  };
+  
+  if (bot && bot.players) {
+    for (const username in bot.players) {
+      const player = bot.players[username];
+      if (player && player.entity && player.entity.position && username !== bot.username) {
+        result.players.push({
+          username: username,
+          position: {
+            x: Math.round(player.entity.position.x),
+            y: Math.round(player.entity.position.y),
+            z: Math.round(player.entity.position.z)
+          },
+          health: player.entity.health || 0,
+          distance: Math.round(bot.entity.position.distanceTo(player.entity.position))
+        });
+      }
+    }
+  }
+  
+  res.json(result);
 });
 
 // Socket.io 状态管理

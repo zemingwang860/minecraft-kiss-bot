@@ -736,6 +736,8 @@
         const socket = io();
         let messageCount = 0, commandCount = 0, startTime = Date.now();
 
+        let radarUpdateInterval = null;
+        
         // 页面切换功能
         document.querySelectorAll('.nav-item').forEach(item => {
             item.addEventListener('click', () => {
@@ -754,31 +756,34 @@
                 switch(pageId) {
                     case 'radar':
                         updateRadar(); // 刷新雷达数据
+                        // 启动雷达自动更新
+                        if (radarUpdateInterval) clearInterval(radarUpdateInterval);
+                        radarUpdateInterval = setInterval(updateRadar, 50); // 50ms更新一次
                         break;
                     case 'tracking':
-                        // 刷新轨迹和热力图数据
-                        fetch('/api/trajectories')
-                            .then(response => response.json())
-                            .then(data => {
-                                renderPlayerTrajectories(data);
-                            })
-                            .catch(err => console.error('Failed to load trajectories:', err));
-                        fetch('/api/heatmap')
-                            .then(response => response.json())
-                            .then(data => {
-                                renderHeatmap(data);
-                            })
-                            .catch(err => console.error('Failed to load heatmap:', err));
+                        // 刷新轨迹和热力图数据，使用新的API格式
+                        fetchTrajectories();
+                        fetchHeatmapData();
+                        // 停止雷达自动更新
+                        if (radarUpdateInterval) {
+                            clearInterval(radarUpdateInterval);
+                            radarUpdateInterval = null;
+                        }
                         break;
-                    case 'database':
-                        // 数据库页面不需要自动加载，等待用户点击
-                        break;
-                    case 'chat':
-                        // 聊天页面会自动接收WebSocket消息
-                        break;
+                    default:
+                        // 其他页面停止雷达更新
+                        if (radarUpdateInterval) {
+                            clearInterval(radarUpdateInterval);
+                            radarUpdateInterval = null;
+                        }
                 }
             });
         });
+        
+        // 初始启动雷达更新（如果当前在雷达页面）
+        if (document.getElementById('radar').classList.contains('active')) {
+            radarUpdateInterval = setInterval(updateRadar, 50);
+        }
 
         // 1. 更新状态
         function updateStatus(status, type = 'connecting') {
@@ -965,10 +970,13 @@
             // 简化实现：仅更新轨迹列表
         }
 
-        // 渲染玩家轨迹
-        function renderPlayerTrajectories(trajectories) {
+        // 渲染玩家轨迹（适配新API格式）
+        function renderPlayerTrajectories(data) {
             const container = document.getElementById('player-trajectories');
             if (!container) return;
+            
+            // 检查是否为新API格式
+            const trajectories = data.data || data;
             
             if (Object.keys(trajectories).length === 0) {
                 container.innerHTML = '<p style="color: var(--text-secondary); text-align: center; margin-top: 120px;">暂无玩家轨迹数据...</p>';
@@ -983,13 +991,17 @@
                 const lastPoint = points[points.length - 1];
                 const firstPoint = points[0];
                 
+                // 适配两种数据格式：旧格式直接使用坐标，新格式使用position对象
+                const pos = lastPoint.position || lastPoint;
+                const firstPos = firstPoint.position || firstPoint;
+                
                 html += `
                     <div style="margin-bottom: 16px; padding: 12px; background: white; border-radius: 4px; border: 1px solid var(--border-color);">
                         <h4 style="font-size: 0.875rem; font-weight: 600; margin-bottom: 8px; color: var(--primary);">${username}</h4>
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 0.75rem;">
                             <div>
                                 <span style="color: var(--text-secondary);">最新位置:</span>
-                                <div style="font-weight: 500;">X: ${lastPoint.x}, Y: ${lastPoint.y}, Z: ${lastPoint.z}</div>
+                                <div style="font-weight: 500;">X: ${pos.x}, Y: ${pos.y}, Z: ${pos.z}</div>
                             </div>
                             <div>
                                 <span style="color: var(--text-secondary);">轨迹点数:</span>
@@ -999,6 +1011,11 @@
                         <div style="margin-top: 8px; font-size: 0.7rem; color: var(--text-secondary);">
                             跟踪时间: ${new Date(firstPoint.time).toLocaleString()} 至 ${new Date(lastPoint.time).toLocaleString()}
                         </div>
+                        <div style="margin-top: 8px; font-size: 0.7rem;">
+                            <button class="btn btn-sm btn-outline" onclick="loadMoreTrajectories('${username}')">
+                                <i class="fas fa-download"></i> 加载更多数据
+                            </button>
+                        </div>
                     </div>
                 `;
             }
@@ -1006,18 +1023,22 @@
             container.innerHTML = html;
         }
 
-        // 渲染热力图
+        // 渲染热力图（适配新API格式）
         function renderHeatmap(data) {
             const container = document.getElementById('heatmap-container');
             if (!container) return;
             
-            if (data.length === 0) {
+            // 检查是否为新API格式
+            const heatmapData = data.data || data;
+            const metadata = data.metadata || {};
+            
+            if (heatmapData.length === 0) {
                 container.innerHTML = '<p style="color: var(--text-secondary); text-align: center; margin-top: 120px;">暂无热力图数据...</p>';
                 return;
             }
             
             // 简化的热力图渲染：显示统计数据和最近活动
-            const recentData = data.slice(-50); // 显示最近50个数据点
+            const recentData = heatmapData.slice(-50); // 显示最近50个数据点
             const playerStats = {};
             
             // 统计每个玩家的活动次数
@@ -1028,11 +1049,13 @@
                 playerStats[point.username]++;
             });
             
+            const totalPoints = metadata.totalPoints || heatmapData.length;
+            
             let html = `
                 <div style="margin-bottom: 16px;">
                     <h4 style="font-size: 0.875rem; font-weight: 600; margin-bottom: 12px;">热力图统计</h4>
                     <div style="margin-bottom: 12px;">
-                        <div style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 4px;">总数据点数: ${data.length}</div>
+                        <div style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 4px;">总数据点数: ${totalPoints}</div>
                         <div style="font-size: 0.75rem; color: var(--text-secondary);">最近活动点: ${recentData.length}</div>
                     </div>
                     
@@ -1060,7 +1083,7 @@
                 </div>
                 
                 <h5 style="font-size: 0.8rem; font-weight: 600; margin-bottom: 8px;">最近活动位置</h5>
-                <div style="max-height: 150px; overflow-y: auto; font-size: 0.7rem;">
+                <div id="heatmap-recent-activity" style="max-height: 150px; overflow-y: auto; font-size: 0.7rem;">
             `;
             
             // 显示最近10个活动位置
@@ -1075,15 +1098,22 @@
                 `;
             });
             
-            html += '</div>';
+            html += `
+                </div>
+                <div style="margin-top: 8px; font-size: 0.7rem; text-align: right;">
+                    <button class="btn btn-sm btn-outline" onclick="loadMoreHeatmapData()">
+                        <i class="fas fa-download"></i> 加载更多热力图数据
+                    </button>
+                </div>
+            `;
             
             container.innerHTML = html;
         }
 
         // 刷新热力图数据
         document.getElementById('btn-refresh-heatmap')?.addEventListener('click', () => {
-            // 从API获取最新数据
-            fetch('/api/heatmap')
+            // 从API获取最新数据，限制数量
+            fetch('/api/heatmap?limit=10000')
                 .then(response => response.json())
                 .then(data => {
                     renderHeatmap(data);
@@ -1093,17 +1123,84 @@
                 });
         });
 
-        // 定期更新数据
-        setInterval(() => {
-            fetch('/api/trajectories')
+        // 定期更新数据（支持分页）
+        function fetchTrajectories() {
+            // 只获取最近500个点，减少数据量
+            fetch('/api/trajectories?limit=500')
                 .then(response => response.json())
                 .then(data => {
                     renderPlayerTrajectories(data);
                 })
                 .catch(err => {
-                    // 忽略错误
+                    console.error('Failed to fetch trajectories:', err);
                 });
-        }, 10000); // 每10秒更新一次
+        }
+
+        function fetchHeatmapData() {
+            // 只获取最近5000个点
+            fetch('/api/heatmap?limit=5000')
+                .then(response => response.json())
+                .then(data => {
+                    renderHeatmap(data);
+                })
+                .catch(err => {
+                    console.error('Failed to fetch heatmap:', err);
+                });
+        }
+
+        // 定期更新数据 - 优化为不同频率
+        setInterval(() => {
+            fetchTrajectories();
+        }, 15000); // 每15秒更新一次轨迹数据
+
+        setInterval(() => {
+            fetchHeatmapData();
+        }, 20000); // 每20秒更新一次热力图数据
+
+        // 加载更多轨迹数据
+        function loadMoreTrajectories(username) {
+            // 这里可以实现更复杂的加载逻辑，例如根据当前显示的数据量计算offset
+            fetch(`/api/trajectories/${username}?limit=1000&offset=500`)
+                .then(response => response.json())
+                .then(data => {
+                    console.log('Loaded more trajectories for', username, data);
+                    // 可以将新数据追加到现有显示中
+                })
+                .catch(err => {
+                    console.error('Failed to load more trajectories:', err);
+                });
+        }
+
+        // 加载更多热力图数据
+        function loadMoreHeatmapData() {
+            // 这里可以实现更复杂的加载逻辑
+            fetch('/api/heatmap?limit=10000&offset=5000')
+                .then(response => response.json())
+                .then(data => {
+                    console.log('Loaded more heatmap data:', data);
+                    // 更新显示最近活动
+                    const activityContainer = document.getElementById('heatmap-recent-activity');
+                    if (activityContainer) {
+                        // 简单实现：替换为新数据
+                        const recentData = data.data.slice(-20).reverse();
+                        let html = '';
+                        recentData.forEach(point => {
+                            html += `
+                                <div style="padding: 4px 0; border-bottom: 1px solid #f3f4f6;">
+                                    <span style="color: var(--text-secondary);">${new Date(point.time).toLocaleTimeString()}</span> - 
+                                    <span style="font-weight: 500;">${point.username}</span> 
+                                    <span style="color: var(--text-secondary);">在</span> 
+                                    <span>(${point.x}, ${point.y}, ${point.z})</span>
+                                </div>
+                            `;
+                        });
+                        activityContainer.innerHTML = html;
+                    }
+                })
+                .catch(err => {
+                    console.error('Failed to load more heatmap data:', err);
+                });
+        }
 
         // 初始加载数据
         window.addEventListener('load', () => {
@@ -1119,7 +1216,9 @@
                     // 忽略错误
                 });
                 
-            // 初始化雷达
+            // 初始化数据
+            fetchTrajectories();
+            fetchHeatmapData();
             updateRadar();
         });
         
@@ -1131,11 +1230,13 @@
         
         // 更新雷达数据
         function updateRadar() {
-            fetch('/api/radar')
+            fetch('/api/radar?maxDistance=50') // 限制最大距离，减少数据量
                 .then(response => response.json())
                 .then(data => {
-                    renderRadar(data);
-                    renderNearbyPlayers(data);
+                    // 适配新API格式
+                    const players = data.data || data;
+                    renderRadar(players);
+                    renderNearbyPlayers(players);
                 })
                 .catch(err => {
                     console.error('Failed to update radar:', err);
