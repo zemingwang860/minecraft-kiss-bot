@@ -1115,8 +1115,8 @@
             // 从API获取最新数据，限制数量
             fetch('/api/heatmap?limit=10000')
                 .then(response => response.json())
-                .then(data => {
-                    renderHeatmap(data);
+                .then(response => {
+                    renderHeatmap(response.data || response);
                 })
                 .catch(err => {
                     console.error('Failed to refresh heatmap data:', err);
@@ -1128,8 +1128,8 @@
             // 只获取最近500个点，减少数据量
             fetch('/api/trajectories?limit=500')
                 .then(response => response.json())
-                .then(data => {
-                    renderPlayerTrajectories(data);
+                .then(response => {
+                    renderPlayerTrajectories(response.data || response);
                 })
                 .catch(err => {
                     console.error('Failed to fetch trajectories:', err);
@@ -1140,8 +1140,8 @@
             // 只获取最近5000个点
             fetch('/api/heatmap?limit=5000')
                 .then(response => response.json())
-                .then(data => {
-                    renderHeatmap(data);
+                .then(response => {
+                    renderHeatmap(response.data || response);
                 })
                 .catch(err => {
                     console.error('Failed to fetch heatmap:', err);
@@ -1162,7 +1162,8 @@
             // 这里可以实现更复杂的加载逻辑，例如根据当前显示的数据量计算offset
             fetch(`/api/trajectories/${username}?limit=1000&offset=500`)
                 .then(response => response.json())
-                .then(data => {
+                .then(response => {
+                    const data = response.data || response;
                     console.log('Loaded more trajectories for', username, data);
                     // 可以将新数据追加到现有显示中
                 })
@@ -1176,13 +1177,14 @@
             // 这里可以实现更复杂的加载逻辑
             fetch('/api/heatmap?limit=10000&offset=5000')
                 .then(response => response.json())
-                .then(data => {
+                .then(response => {
+                    const data = response.data || response;
                     console.log('Loaded more heatmap data:', data);
                     // 更新显示最近活动
                     const activityContainer = document.getElementById('heatmap-recent-activity');
                     if (activityContainer) {
                         // 简单实现：替换为新数据
-                        const recentData = data.data.slice(-20).reverse();
+                        const recentData = data.slice(-20).reverse();
                         let html = '';
                         recentData.forEach(point => {
                             html += `
@@ -1389,7 +1391,10 @@
             
             fetch(apiUrl)
                 .then(response => response.json())
-                .then(data => {
+                .then(response => {
+                    // 提取实际数据，处理API返回格式
+                    const data = response.data || response;
+                    
                     if (Array.isArray(data)) {
                         // 数组类型数据（活动记录、热力图数据）
                         if (data.length === 0) {
